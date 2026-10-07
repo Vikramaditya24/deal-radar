@@ -5,9 +5,14 @@ import * as schema from "./schema";
 export function databaseConfig() {
   const configured =
     process.env.TURSO_DATABASE_URL || "file:./data/deal-radar.db";
-  const url = configured.startsWith("file:")
-    ? `file:${resolve(decodeURIComponent(configured.slice(5)))}`
-    : configured;
+  // Preserve libSQL's in-memory URL for isolated integration tests. Resolving
+  // ':memory:' as a filesystem path would accidentally create a real file.
+  const url =
+    configured === "file::memory:"
+      ? configured
+      : configured.startsWith("file:")
+        ? `file:${resolve(decodeURIComponent(configured.slice(5)))}`
+        : configured;
   const local = url.startsWith("file:");
   if (!local && !url.startsWith("libsql://") && !url.startsWith("https://"))
     throw new Error("Use a file: URL locally or a hosted libSQL/HTTPS URL");

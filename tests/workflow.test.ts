@@ -7,9 +7,6 @@ import {
   expect,
   vi,
 } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/libsql/migrator";
@@ -18,11 +15,13 @@ import { workspaces, enrichmentJobs, suppressions } from "../lib/schema";
 import { ingest, importSchema } from "../lib/ingest";
 import { createJob, getJob, processJob, cancelJob } from "../lib/enrichment";
 import { crawler, CrawlError } from "../lib/crawler";
-let directory: string;
 const originalUrl = process.env.TURSO_DATABASE_URL;
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "deal-radar-test-"));
-  process.env.TURSO_DATABASE_URL = `file:${join(directory, "test.db")}`;
+  // Use the real libSQL engine and migrations without a disposable file.
+  // Windows can retain native database handles until the worker exits, making
+  // unlinking a temporary database in afterAll unreliable even after close().
+  closeDb();
+  process.env.TURSO_DATABASE_URL = "file::memory:";
   const db = await getDb();
   await migrate(db, { migrationsFolder: "drizzle" });
   for (const id of ["test-one", "test-two"])
@@ -31,11 +30,10 @@ beforeAll(async () => {
       .values({ id, sessionTokenHash: id, createdAt: Date.now() });
 });
 afterEach(() => vi.restoreAllMocks());
-afterAll(async () => {
+afterAll(() => {
   closeDb();
   if (originalUrl === undefined) delete process.env.TURSO_DATABASE_URL;
   else process.env.TURSO_DATABASE_URL = originalUrl;
-  await rm(directory, { recursive: true, force: true });
 });
 async function add(domain: string) {
   return (
@@ -45,7 +43,7 @@ async function add(domain: string) {
     )
   ).leadIds[0];
 }
-describe("persistent polled jobs", () => {
+describe("database-backed polled jobs", () => {
   it("merges repeated imports without adding targets", async () => {
     const first = await add("acme.com");
     const second = await add("acme.com");
