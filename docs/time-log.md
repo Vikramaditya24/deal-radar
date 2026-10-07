@@ -7,4 +7,6 @@ Record actual wall-clock coding, testing and review sessions here. Estimates in 
 | 2026-10-06 | 1     | Architecture and scope revision            | To be recorded by candidate | ChatGPT drafted architecture; primary docs checked | Pending          |
 | 2026-10-06 | 2     | Scaffold, database, fixtures, verification | To be recorded by candidate | ChatGPT generated code and ran checks              | Pending          |
 
+| 2026-10-06 | 3 | Import/dedupe, guarded crawling, job polling UI and verification | To be recorded by candidate | ChatGPT generated code, checked primary docs and executed tests | Pending |
+
 Review responsibilities: understand each file, reproduce checks locally, verify deployment configuration and disclose generated-code assistance in the assessment.

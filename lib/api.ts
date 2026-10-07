@@ -60,9 +60,11 @@ export function query(request: Request) {
       );
   return Object.fromEntries(params);
 }
-export async function readJson(request: Request) {
+export async function readJson(request: Request, maxBytes = 100_000) {
   const requestUrl = new URL(request.url);
-  const expected = process.env.APP_ORIGIN || `${requestUrl.protocol}//${request.headers.get("host") || requestUrl.host}`;
+  const expected =
+    process.env.APP_ORIGIN ||
+    `${requestUrl.protocol}//${request.headers.get("host") || requestUrl.host}`;
   const origin = request.headers.get("origin");
   if (!origin || origin !== expected)
     throw new ApiError(
@@ -77,7 +79,7 @@ export async function readJson(request: Request) {
       "Expected application/json",
     );
   const text = await request.text();
-  if (text.length > 100_000)
+  if (Buffer.byteLength(text) > maxBytes)
     throw new ApiError(413, "INPUT_TOO_LARGE", "Request is too large");
   try {
     return JSON.parse(text);

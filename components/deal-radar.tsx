@@ -1,5 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ImportDialog } from "./import-dialog";
+import { JobProgress } from "./job-progress";
+import { api, jsonPost } from "@/lib/client";
+import type { JobView } from "@/lib/enrichment";
 import { useTheme } from "next-themes";
 import {
   ArrowRight,
@@ -25,23 +29,41 @@ type PageData = {
   page: number;
   limit: number;
 };
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, cache: "no-store" });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message || "Request failed");
-  return body.data as T;
-}
-const money = (cents: number | null) =>
+const money = (cents: number | null, currency = "USD") =>
   cents === null
     ? "Not reported"
     : new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency,
         notation: "compact",
         maximumFractionDigits: 1,
       }).format(cents / 100);
 export function DealRadar() {
   const { resolvedTheme, setTheme } = useTheme();
+  const [importMode, setImportMode] = useState<"import" | "live" | null>(null);
+  const [notice, setNotice] = useState("");
+  const [jobId, setJobId] = useState<string | null>(null),
+    [runToken, setRunToken] = useState(0),
+    [jobBusy, setJobBusy] = useState(false),
+    [creatingJob, setCreatingJob] = useState(false);
+  function jobCreated(job: JobView) {
+    setJobId(job.id);
+    setRunToken((t) => t + 1);
+  }
+  async function enrich(ids: string[]) {
+    setCreatingJob(true);
+    setError("");
+    try {
+      jobCreated(
+        await api<JobView>("/api/enrichment/jobs", jsonPost({ leadIds: ids })),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cannot start enrichment");
+    } finally {
+      setCreatingJob(false);
+    }
+  }
+
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);
   const [data, setData] = useState<PageData | null>(null);
@@ -98,7 +120,7 @@ export function DealRadar() {
         if (e.name !== "AbortError") setDetailError(e.message);
       });
     return () => controller.abort();
-  }, [selectedId]);
+  }, [selectedId, version]);
   useEffect(() => {
     if (!selectedId) return;
     lastFocus.current = document.activeElement as HTMLElement;
@@ -165,9 +187,7 @@ export function DealRadar() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge className="hidden sm:inline-flex">
-              Phase 2 · Foundation
-            </Badge>
+            <Badge className="hidden sm:inline-flex">Phase 3 · Research</Badge>
             <Button
               variant="ghost"
               size="icon"
@@ -197,7 +217,7 @@ export function DealRadar() {
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Database className="size-4" /> libSQL · persistent local data
+            <Database className="size-4" /> libSQL · persistent workspace
           </div>
         </div>
         <Card className="mb-7 flex flex-wrap items-center justify-between gap-5 border-primary/20 p-6">
@@ -234,7 +254,7 @@ export function DealRadar() {
             ],
             [
               "Synthetic records",
-              session?.demoLoaded ? 150 : 0,
+              session?.syntheticCount ?? 0,
               "Clearly labeled, never crawled",
             ],
           ].map(([label, value, hint]) => (
@@ -266,12 +286,66 @@ export function DealRadar() {
             </Button>
           </div>
         )}
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            disabled={!session || jobBusy}
+            onClick={() => {
+              setSelectedId(null);
+              setImportMode("import");
+            }}
+          >
+            Import CSV / URLs
+          </Button>
+          <Button
+            disabled={!session || jobBusy}
+            onClick={() => {
+              setSelectedId(null);
+              setImportMode("live");
+            }}
+          >
+            Live crawl · up to 5 URLs
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!data?.items.length || jobBusy || creatingJob}
+            onClick={() => void enrich(data!.items.map((l) => l.id))}
+          >
+            {creatingJob
+              ? "Starting…"
+              : `Enrich shown (${data?.items.length || 0})`}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            No paid keys. No outreach is sent.
+          </span>
+        </div>
+        {notice && (
+          <div
+            role="status"
+            className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+          >
+            <span>{notice}</span>
+            <Button variant="ghost" size="sm" onClick={() => setNotice("")}>
+              Dismiss
+            </Button>
+          </div>
+        )}
+        {session && (
+          <JobProgress
+            jobId={jobId}
+            runToken={runToken}
+            onDetected={setJobId}
+            onBusy={setJobBusy}
+            onChanged={() => setVersion((v) => v + 1)}
+          />
+        )}
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-5">
             <div>
               <h2 className="font-semibold">Business directory</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Raw demo facts · ranking and enrichment arrive in later phases
+                Imported facts and source-backed enrichment · ranking arrives in
+                Phase 4
               </p>
             </div>
             <label className="relative w-full sm:w-72">
@@ -331,7 +405,15 @@ export function DealRadar() {
                             <span className="text-xs text-muted-foreground">
                               {lead.domain}
                             </span>
-                            <Badge>Synthetic</Badge>
+                            <Badge>
+                              {lead.synthetic
+                                ? "Synthetic"
+                                : ["completed", "partial"].includes(
+                                      lead.enrichmentStatus,
+                                    )
+                                  ? "Real · enriched"
+                                  : "Real · imported"}
+                            </Badge>
                           </div>
                         </td>
                         <td className="px-5 py-4 text-muted-foreground">
@@ -341,7 +423,10 @@ export function DealRadar() {
                           {lead.facts.city}, {lead.facts.state}
                         </td>
                         <td className="px-5 py-4 tabular-nums">
-                          {money(lead.facts.revenueCents)}
+                          {money(
+                            lead.facts.revenueCents,
+                            lead.facts.currency || "USD",
+                          )}
                         </td>
                         <td className="px-5 py-4 tabular-nums">
                           {lead.facts.foundedYear ?? "Unknown"}
@@ -417,9 +502,8 @@ export function DealRadar() {
           )}
         </Card>
         <p className="mt-6 text-xs leading-5 text-muted-foreground">
-          Phase 2 provides the working foundation. Import, live crawl, scoring,
-          outreach and pipeline actions will be implemented in their designated
-          phases.
+          Phase 3 adds ingest, duplicate review and polite enrichment. Scoring,
+          outreach and pipeline actions arrive in the next phases.
         </p>
       </main>
       {selectedId && (
@@ -437,7 +521,11 @@ export function DealRadar() {
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <Badge className="mb-3">
-                  Synthetic fixture · no live website
+                  {detail
+                    ? detail.synthetic
+                      ? "Synthetic fixture · no live website"
+                      : "Real business · public website"
+                    : "Loading business evidence"}
                 </Badge>
                 <h2 id="detail-title" className="text-2xl font-semibold">
                   {detail?.name ?? "Business evidence"}
@@ -466,12 +554,43 @@ export function DealRadar() {
                   {detail.facts.industry} · {detail.facts.city},{" "}
                   {detail.facts.state}
                   <br />
-                  Reported revenue: {money(detail.facts.revenueCents)}{" "}
-                  (illustrative)
+                  Reported revenue:{" "}
+                  {money(
+                    detail.facts.revenueCents,
+                    detail.facts.currency || "USD",
+                  )}{" "}
+                  {detail.synthetic ? "(illustrative)" : "(unverified import)"}
                   <br />
-                  These evidence URLs identify fixtures and do not resolve to
-                  real businesses.
+                  {detail.synthetic
+                    ? "These evidence URLs identify fixtures, not real businesses."
+                    : "Public website claims are research evidence; verify them before diligence."}
                 </p>
+                <Button
+                  variant="outline"
+                  className="mb-5"
+                  disabled={jobBusy || creatingJob}
+                  onClick={() => void enrich([detail.id])}
+                >
+                  Enrich this business
+                </Button>
+                <p className="mb-4 text-xs text-muted-foreground">
+                  Enrichment: {detail.enrichmentStatus}
+                </p>
+                {detail.signals.length > 0 && (
+                  <div className="mb-5 rounded-xl border border-primary/30 p-4">
+                    <h3 className="font-semibold">
+                      Succession research signals
+                    </h3>
+                    {detail.signals.map((signal) => (
+                      <p
+                        key={signal.type}
+                        className="mt-2 text-sm text-muted-foreground"
+                      >
+                        {signal.explanation}
+                      </p>
+                    ))}
+                  </div>
+                )}
                 <h3 className="mb-3 font-semibold">Field-level evidence</h3>
                 <div className="space-y-3">
                   {detail.evidence.map((e) => (
@@ -481,18 +600,25 @@ export function DealRadar() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-semibold">{e.field}</span>
+                        <Badge>{e.selected ? "Selected" : "Alternate"}</Badge>
                         <Badge>
                           {Math.round(e.confidence * 100)}% confidence
                         </Badge>
                       </div>
+                      <p className="mt-2 break-words text-sm font-medium">
+                        {Array.isArray(e.value)
+                          ? e.value.join(", ")
+                          : String(e.value)}
+                      </p>
                       <p className="mt-2 text-sm leading-6">{e.excerpt}</p>
                       <p className="mt-2 break-all text-xs text-muted-foreground">
-                        {e.sourceUrl ??
-                          detail.sources[0]?.label ??
-                          "Synthetic import"}
+                        {e.sourceUrl ?? e.id}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Synthetic fixture ·{" "}
+                        {e.synthetic
+                          ? "Synthetic fixture"
+                          : "Public/import evidence"}{" "}
+                        ·{" "}
                         {new Date(e.observedAt).toLocaleDateString("en-US", {
                           timeZone: "UTC",
                         })}
@@ -502,14 +628,29 @@ export function DealRadar() {
                 </div>
                 <div className="mt-5 rounded-lg bg-muted p-4 text-xs leading-5 text-muted-foreground">
                   <ExternalLink className="mb-2 size-4" />
-                  Reserved .example domains are intentionally not opened or
-                  crawled. Confidence is an evidence-quality convention, not a
-                  calibrated probability.
+                  {detail.synthetic
+                    ? "Reserved .example domains are never opened or crawled."
+                    : "Live crawls check robots.txt and stop on blocks or challenges."}{" "}
+                  Confidence is an evidence-quality convention, not a calibrated
+                  probability.
                 </div>
               </>
             )}
           </section>
         </div>
+      )}
+      {importMode && (
+        <ImportDialog
+          mode={importMode}
+          onClose={() => setImportMode(null)}
+          onImported={(message) => {
+            setNotice(message);
+            setSearch("");
+            setPage(1);
+            setVersion((v) => v + 1);
+          }}
+          onJob={jobCreated}
+        />
       )}
     </div>
   );

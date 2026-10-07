@@ -176,4 +176,5 @@ export type SessionData = {
   demoLoaded: boolean;
   leadCount: number;
   thesisCount: number;
+  syntheticCount: number;
 };

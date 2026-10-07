@@ -24,6 +24,18 @@ export async function loadDemo(workspaceId: string) {
     if (workspace.demoLoadedAt !== null) return;
     const now = Date.now();
     for (const business of sampleBusinesses()) {
+      const [alreadyImported] = await tx
+        .select({ id: leads.id })
+        .from(leads)
+        .where(
+          and(
+            eq(leads.workspaceId, workspaceId),
+            eq(leads.domain, business.domain),
+            eq(leads.synthetic, true),
+          ),
+        )
+        .limit(1);
+      if (alreadyImported) continue;
       await tx
         .insert(leads)
         .values({
@@ -78,7 +90,12 @@ export async function workspaceSummary(workspaceId: string) {
     .select({ value: count() })
     .from(theses)
     .where(eq(theses.workspaceId, workspaceId));
+  const [syntheticCount] = await db
+    .select({ value: count() })
+    .from(leads)
+    .where(and(eq(leads.workspaceId, workspaceId), eq(leads.synthetic, true)));
   return {
+    syntheticCount: syntheticCount.value,
     demoLoaded: workspace?.demoLoadedAt != null,
     leadCount: leadCount.value,
     thesisCount: thesisCount.value,
