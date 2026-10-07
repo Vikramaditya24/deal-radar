@@ -114,6 +114,16 @@ export const draftSchema = z.object({
       thesisFields: z.array(z.string()),
     }),
   ),
+  originalSentences: z
+    .array(
+      z.object({
+        text: z.string(),
+        kind: z.enum(["fact", "buyer_intent", "non_factual", "user_written"]),
+        evidenceIds: z.array(z.string()),
+        thesisFields: z.array(z.string()),
+      }),
+    )
+    .optional(),
   thesisId: z.string(),
   thesisRevision: z.number().int(),
   leadRevision: z.number().int(),
@@ -147,6 +157,8 @@ export const leadQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     q: z.string().trim().max(100).default(""),
     synthetic: z.enum(["true", "false"]).optional(),
+    thesisId: z.string().min(1).max(120).optional(),
+    sort: z.enum(["name", "score"]).default("name"),
   })
   .strict();
 export const idParamsSchema = z
@@ -164,8 +176,12 @@ export type LeadListItem = {
   enrichmentStatus: string;
   facts: Facts;
   createdAt: number;
+  score: z.infer<typeof scoreSchema> | null;
+  revision: number;
 };
 export type LeadDetail = LeadListItem & {
+  drafts: z.infer<typeof draftSchema>[];
+  suppressed: boolean;
   evidenceCount: number;
   evidence: Evidence[];
   signals: z.infer<typeof signalSchema>[];

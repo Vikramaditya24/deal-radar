@@ -1,6 +1,6 @@
-# Deal Radar — Phase 3
+# Deal Radar — Phase 4
 
-A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. Scoring, outreach and pipeline actions arrive in the next phases.
+A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. This delivery also includes reusable thesis editing, fit-v1 ranking, sentence-sourced outreach, saved user edits, and optional grounded AI reasoning. Pipeline, export and suppression management arrive in Phase 5.
 
 ## Run locally
 
@@ -35,7 +35,7 @@ The shared migration runner is `drizzle-orm/libsql/migrator`; schema is `lib/sch
 
 ## Phases
 
-See `docs/architecture.md` for the full revised design. Phase 3 implements ingest/enrichment/live crawl; Phase 4 adds scoring/outreach; Phase 5 polished workflow/export/suppression; Phase 6 complete tests/docs/CI; Phase 7 demonstration and every-file guide. No Docker or Redis implementation is planned. Record actual development time and AI use in `docs/time-log.md`.
+See `docs/architecture.md` for the full revised design. Phases 3 and 4 implement ingest/enrichment/live crawl and scoring/outreach; Phase 5 polished workflow/export/suppression; Phase 6 complete tests/docs/CI; Phase 7 demonstration and every-file guide. No Docker or Redis implementation is planned. Record actual development time and AI use in `docs/time-log.md`.
 
 The equivalent 150-row CSV is included as `data/sample.csv`; the generator and website fixtures are in `data/sample.ts`. Recorded check results and manual steps are in `docs/phase-2-verification.md`.
 
@@ -50,3 +50,17 @@ The equivalent 150-row CSV is included as `data/sample.csv`; the generator and w
 The latest five jobs are listed by GET `/api/enrichment/jobs` for reopening progress; this small addition to the Phase 1 API requires no extra table. This is a single-client, best-effort queue. Per-process throttling and single-flight do not coordinate independent Vercel instances. Do not run the same job from concurrent tabs. Redis remains a future upgrade only.
 
 See `docs/phase-3-verification.md` for recorded checks/manual instructions and `docs/git-history.md` for preserving phase commits. The five-table schema and original migration history are unchanged. Real-site retrieval was not verified in this restricted environment (DNS failed); fixture and policy flows are tested without network.
+
+## Phase 4 usage
+
+1. Choose the sample thesis or create a buy-box with **New thesis**. Empty fields are unconfigured, not zero constraints. Industries/geographies/must-haves/deal-breakers are comma-separated literal phrases; at least one positive criterion is required.
+2. Click **Rank first 150 businesses**. This scores the first 150 records alphabetically across the directory, then displays current-thesis scores descending. For larger directories use **Score shown** on other pages. Changing thesis or evidence invalidates the prior assessment. Each lead stores one latest score; switching theses requires rescoring. The assessment date is UTC; a new UTC day requires rescoring.
+3. Inspect a business: view four factor bars, reasons, unknowns and any exclusion cap. **Score this business** recomputes it. No valuation or seller-probability claim is made.
+4. Generate email or LinkedIn text in professional, warm or direct tone. Review every fact's evidence and buyer-intent thesis fields. Copy saved text manually. LinkedIn notes are limited to 700 characters. Drafts do not send messages and never infer willingness to sell.
+5. Save an edit: the entire edited body is labeled user-written without automatic citations; the original generated sentences and citations remain available in a disclosure. Copy uses the saved draft, not unsaved editor text. Regenerate after evidence/thesis changes. Suppression is enforced server-side; its management UI arrives in Phase 5.
+
+The fit-v1 allocation is thesis 50, succession research clues 20, completeness 15, contactability 15. Field points are discounted by selected evidence confidence. Unconfigured positive criteria renormalize to 50. Literal must-have absence stays unknown; evidenced deal-breakers exclude and cap total at 20. Factor bars show uncapped points. Geography supports the Phase 2 composite assertion; explicitly stored supported currency is metadata of the evidenced revenue assertion. No currency conversion is performed. See docs/phase-4-verification.md for checks and limits.
+
+Optional AI: set server-only `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default `gpt-4o-mini`), restart, then use **Optional AI reasoning** for one business. It calls the OpenAI Responses API with strict JSON schema to choose reason order and approved wording, rather than accept free-form model claims. It cannot change points or generate outreach facts. Missing key, refusal, timeout, malformed output or invalid/duplicate indices use deterministic fallback. This path is optional and may incur provider charges if enabled. No key is needed for any normal flow. Never commit `.env.local`.
+
+Generated reasoning and evidence are research aids: imported values remain unverified, confidence is a convention, and literal phrase matching can miss synonyms and semantic negation. Review original sources before diligence or outreach. Synthetic records and drafts remain labeled demo content.

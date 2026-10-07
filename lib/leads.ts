@@ -1,8 +1,10 @@
-import { and, count, eq, like, or, asc } from "drizzle-orm";
+import { and, count, eq, like, or, asc, desc, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { leads, theses, workspaces } from "./schema";
 import {
+  scoreSchema,
+  draftSchema,
   factsSchema,
   evidenceSchema,
   signalSchema,
@@ -11,6 +13,9 @@ import {
   type LeadDetail,
 } from "./contracts";
 import { sampleBusinesses, sampleThesis } from "../data/sample";
+import { getThesis } from "./assessment";
+import { isSuppressed } from "./enrichment";
+import { scoreIsStale } from "./scoring";
 import { ApiError } from "./api";
 export async function loadDemo(workspaceId: string) {
   const db = await getDb();
@@ -108,9 +113,15 @@ export async function listLeads(
     limit: number;
     q: string;
     synthetic?: "true" | "false";
+    thesisId?: string;
+    sort?: "name" | "score";
   },
 ) {
   const db = await getDb();
+  const thesis = filters.thesisId
+    ? await getThesis(workspaceId, filters.thesisId)
+    : null;
+  const date = new Date().toISOString().slice(0, 10);
   const safeSearch = filters.q.replace(/[\%_]/g, "");
   const where = and(
     eq(leads.workspaceId, workspaceId),
@@ -135,14 +146,31 @@ export async function listLeads(
       enrichmentStatus: leads.enrichmentStatus,
       facts: leads.facts,
       createdAt: leads.createdAt,
+      revision: leads.revision,
+      score: leads.score,
     })
     .from(leads)
     .where(where)
-    .orderBy(asc(leads.name), asc(leads.id))
+    .orderBy(
+      ...(filters.sort === "score" && thesis
+        ? [
+            desc(
+              sql`CASE WHEN json_extract(${leads.score}, '$.thesisId') = ${thesis.id} AND json_extract(${leads.score}, '$.thesisRevision') = ${thesis.revision} AND json_extract(${leads.score}, '$.leadRevision') = ${leads.revision} AND json_extract(${leads.score}, '$.assessmentDate') = ${date} THEN json_extract(${leads.score}, '$.total') ELSE -1 END`,
+            ),
+          ]
+        : []),
+      asc(leads.name),
+      asc(leads.id),
+    )
     .limit(filters.limit)
     .offset((filters.page - 1) * filters.limit);
   const items: LeadListItem[] = rows.map((row) => ({
     ...row,
+    score:
+      row.score &&
+      (!thesis || !scoreIsStale(row.score, row.revision, thesis, date))
+        ? scoreSchema.parse(row.score)
+        : null,
     facts: factsSchema.parse(row.facts),
   }));
   return {
@@ -172,6 +200,9 @@ export async function leadDetail(
     synthetic: row.synthetic,
     enrichmentStatus: row.enrichmentStatus,
     facts: factsSchema.parse(row.facts),
+    score: row.score ? scoreSchema.parse(row.score) : null,
+    drafts: draftSchema.array().parse(row.drafts),
+    suppressed: await isSuppressed(workspaceId, row),
     evidenceCount: evidence.length,
     evidence,
     signals: signalSchema.array().parse(row.signals),

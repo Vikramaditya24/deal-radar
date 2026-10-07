@@ -40,3 +40,27 @@ git log --oneline -5
 ```
 
 This preserves your own author identity and your actual local commit hashes. Do not claim AI-generated commits were independently authored; disclose AI assistance and your review. On PowerShell, use `npm.cmd` if npm.ps1 is blocked. No GitHub remote, push or publishing is required at this phase.
+
+## Phase 4
+
+First verify and commit the Phase 3 Windows/dependency fix if not already committed. Stop the dev server. Copy the contents of the Phase 4 ZIP's `deal-radar` folder into this same project folder, preserving `.git`, `.env.local`, and your database. No new migration or database reset is needed.
+
+```sh
+npm install
+npm test
+npm run typecheck
+npm run build
+npm run dev
+```
+
+Complete docs/phase-4-verification.md, stop dev, then:
+
+```sh
+git status
+git diff --stat
+git add .
+git commit -m "feat: phase 4 thesis scoring and evidence-backed outreach"
+git log --oneline -6
+```
+
+Do not reinitialize Git or copy another `.git` folder. These ZIPs do not create commits on your computer: the command above records the reviewed changes in your existing history.

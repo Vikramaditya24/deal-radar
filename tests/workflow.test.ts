@@ -116,16 +116,14 @@ describe("database-backed polled jobs", () => {
       job = await createJob("test-one", { leadIds: [leadId] });
     vi.spyOn(crawler, "page").mockImplementation(async () => {
       const db = await getDb();
-      await db
-        .insert(suppressions)
-        .values({
-          id: randomUUID(),
-          workspaceId: "test-one",
-          kind: "lead",
-          normalizedValue: leadId,
-          reason: "opt out",
-          createdAt: Date.now(),
-        });
+      await db.insert(suppressions).values({
+        id: randomUUID(),
+        workspaceId: "test-one",
+        kind: "lead",
+        normalizedValue: leadId,
+        reason: "opt out",
+        createdAt: Date.now(),
+      });
       return {
         status: 200,
         headers: { "content-type": "text/html" },
@@ -149,4 +147,102 @@ describe("database-backed polled jobs", () => {
     expect((await processJob("test-one", job.id)).status).toBe("cancelled");
     expect(spy).not.toHaveBeenCalled();
   });
+});
+
+// Phase 4 storage checks reuse the migrated in-memory workspace.
+import { loadDemo, leadDetail, listLeads } from "../lib/leads";
+import { scoreBatch, saveOutreach } from "../lib/assessment";
+import { theses, leads } from "../lib/schema";
+it("persists scores and six sourced draft variations, rejecting stale edits", async () => {
+  await loadDemo("test-two");
+  const thesisId = "test-two:sample-thesis";
+  const list = await listLeads("test-two", { page: 1, limit: 20, q: "" });
+  const id = list.items[0].id;
+  const scores = await scoreBatch("test-two", {
+    thesisId,
+    leadIds: list.items.map((l) => l.id),
+    useAI: false,
+  });
+  expect(scores).toHaveLength(20);
+  const ranked = await listLeads("test-two", {
+    page: 1,
+    limit: 20,
+    q: "",
+    thesisId,
+    sort: "score",
+  });
+  expect(ranked.items[0].score).not.toBeNull();
+  for (const tone of ["professional", "warm", "direct"] as const)
+    for (const channel of ["email", "linkedin"] as const)
+      await saveOutreach("test-two", id, { thesisId, tone, channel });
+  let detail = await leadDetail("test-two", id);
+  expect(detail.drafts).toHaveLength(6);
+  const input = {
+    thesisId,
+    tone: "professional" as const,
+    channel: "email" as const,
+  };
+  const edit = await saveOutreach("test-two", id, input, {
+    ...input,
+    text: "My manual revision",
+    leadRevision: detail.revision,
+    thesisRevision: 1,
+  });
+  expect(edit.sentences[0].kind).toBe("user_written");
+  expect(edit.sentences[0].evidenceIds).toEqual([]);
+  expect(edit.originalSentences?.length).toBeGreaterThan(0);
+  const db = await getDb();
+  await db.update(theses).set({ revision: 2 }).where(eq(theses.id, thesisId));
+  await expect(
+    saveOutreach("test-two", id, input, {
+      ...input,
+      text: "Stale",
+      leadRevision: detail.revision,
+      thesisRevision: 1,
+    }),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(
+    (
+      await listLeads("test-two", {
+        page: 1,
+        limit: 20,
+        q: "",
+        thesisId,
+        sort: "score",
+      })
+    ).items.every((l) => l.score === null),
+  ).toBe(true);
+  await expect(
+    scoreBatch("test-one", { thesisId, leadIds: [id], useAI: false }),
+  ).rejects.toMatchObject({ status: 404 });
+  await db
+    .insert(suppressions)
+    .values({
+      id: randomUUID(),
+      workspaceId: "test-two",
+      kind: "lead",
+      normalizedValue: id,
+      reason: "opt out",
+      createdAt: Date.now(),
+    });
+  await expect(saveOutreach("test-two", id, input)).rejects.toMatchObject({
+    status: 403,
+  });
+});
+it("rolls back a score batch if any lead is unavailable", async () => {
+  const db = await getDb();
+  const [t] = await db
+    .select()
+    .from(theses)
+    .where(eq(theses.workspaceId, "test-two"));
+  const list = await listLeads("test-two", { page: 1, limit: 1, q: "" });
+  const before = await leadDetail("test-two", list.items[0].id);
+  await expect(
+    scoreBatch("test-two", {
+      thesisId: t.id,
+      leadIds: [before.id, "missing"],
+      useAI: false,
+    }),
+  ).rejects.toMatchObject({ status: 404 });
+  expect((await leadDetail("test-two", before.id)).score).toEqual(before.score);
 });

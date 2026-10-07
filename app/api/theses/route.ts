@@ -26,3 +26,33 @@ export async function GET(request: Request) {
     return failure(error);
   }
 }
+
+import { randomUUID } from "node:crypto";
+import { readJson } from "@/lib/api";
+import { thesisWriteSchema } from "@/lib/assessment";
+export async function POST(request: Request) {
+  try {
+    emptyQuery.parse(query(request));
+    const input = thesisWriteSchema.parse(await readJson(request));
+    const db = await getDb();
+    const now = Date.now();
+    const [row] = await db
+      .insert(theses)
+      .values({
+        id: randomUUID(),
+        workspaceId: await getWorkspace(),
+        ...input,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    return success({
+      id: row.id,
+      name: row.name,
+      revision: row.revision,
+      criteria: row.criteria,
+    });
+  } catch (e) {
+    return failure(e);
+  }
+}

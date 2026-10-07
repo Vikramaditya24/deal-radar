@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ThesisBuilder } from "./thesis-builder";
+import { OutreachEditor } from "./outreach-editor";
+import type { Thesis } from "@/lib/scoring";
 import { ImportDialog } from "./import-dialog";
 import { JobProgress } from "./job-progress";
 import { api, jsonPost } from "@/lib/client";
@@ -64,12 +67,60 @@ export function DealRadar() {
     }
   }
 
+  const [version, setVersion] = useState(0);
+  const [theses, setTheses] = useState<Thesis[]>([]);
+  const [thesisId, setThesisId] = useState("");
+  const [scoring, setScoring] = useState(false);
+  const [sort, setSort] = useState<"name" | "score">("score");
+  useEffect(() => {
+    let active = true;
+    api<Thesis[]>("/api/theses")
+      .then((rows) => {
+        if (active) {
+          setTheses(rows);
+          setThesisId((id) => id || rows[0]?.id || "");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [version]);
+  async function scoreAll() {
+    if (!thesisId) return;
+    setScoring(true);
+    setError("");
+    try {
+      const all = await api<PageData>("/api/leads?limit=100");
+      const second =
+        all.total > 100
+          ? await api<PageData>("/api/leads?limit=100&page=2")
+          : null;
+      await api(
+        "/api/scores",
+        jsonPost({
+          thesisId,
+          leadIds: [...all.items, ...(second?.items || [])]
+            .slice(0, 150)
+            .map((l) => l.id),
+        }),
+      );
+      setNotice(
+        `Scored ${Math.min(all.total, 150)} businesses. For larger directories, score shown rows.`,
+      );
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Scoring failed");
+    } finally {
+      setScoring(false);
+    }
+  }
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);
   const [data, setData] = useState<PageData | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [version, setVersion] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState("");
@@ -89,7 +140,7 @@ export function DealRadar() {
       api<SessionData>("/api/session", { signal: controller.signal })
         .then(async (s) => {
           const rows = await api<PageData>(
-            `/api/leads?page=${page}&limit=20&q=${encodeURIComponent(search)}`,
+            `/api/leads?page=${page}&limit=20&q=${encodeURIComponent(search)}&sort=${sort}${thesisId ? `&thesisId=${encodeURIComponent(thesisId)}` : ""}`,
             { signal: controller.signal },
           );
           setSession(s);
@@ -106,7 +157,7 @@ export function DealRadar() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [search, page, version]);
+  }, [search, page, version, thesisId, sort]);
   useEffect(() => {
     if (!selectedId) return;
     const controller = new AbortController();
@@ -132,7 +183,7 @@ export function DealRadar() {
       if (event.key === "Tab") {
         const elements = Array.from(
           document.querySelectorAll<HTMLElement>(
-            '[role="dialog"] button, [role="dialog"] a',
+            '[role="dialog"] button:not(:disabled), [role="dialog"] a, [role="dialog"] input, [role="dialog"] select, [role="dialog"] textarea',
           ),
         );
         const first = elements[0],
@@ -187,7 +238,7 @@ export function DealRadar() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge className="hidden sm:inline-flex">Phase 3 · Research</Badge>
+            <Badge className="hidden sm:inline-flex">Phase 4 · Shortlist</Badge>
             <Button
               variant="ghost"
               size="icon"
@@ -286,7 +337,56 @@ export function DealRadar() {
             </Button>
           </div>
         )}
+        <ThesisBuilder
+          theses={theses}
+          activeId={thesisId}
+          onSelect={(id) => {
+            setThesisId(id);
+            setPage(1);
+          }}
+          onSaved={() => setVersion((v) => v + 1)}
+        />
         <div className="mb-5 flex flex-wrap items-center gap-3">
+          <Button
+            disabled={!thesisId || !data?.total || scoring}
+            onClick={() => void scoreAll()}
+          >
+            {scoring ? "Scoring…" : "Rank first 150 businesses"}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!thesisId || !data?.items.length || scoring}
+            onClick={async () => {
+              setScoring(true);
+              try {
+                await api(
+                  "/api/scores",
+                  jsonPost({ thesisId, leadIds: data!.items.map((l) => l.id) }),
+                );
+                setVersion((v) => v + 1);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Scoring failed");
+              } finally {
+                setScoring(false);
+              }
+            }}
+          >
+            Score shown
+          </Button>
+          <label className="text-xs">
+            Sort{" "}
+            <select
+              className="rounded border border-border bg-background p-2"
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as "name" | "score");
+                setPage(1);
+              }}
+            >
+              <option value="score">Fit score</option>
+              <option value="name">Name</option>
+            </select>
+          </label>
           <Button
             variant="outline"
             disabled={!session || jobBusy}
@@ -344,8 +444,7 @@ export function DealRadar() {
             <div>
               <h2 className="font-semibold">Business directory</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Imported facts and source-backed enrichment · ranking arrives in
-                Phase 4
+                Evidence-backed fit scores · choose a thesis and rank businesses
               </p>
             </div>
             <label className="relative w-full sm:w-72">
@@ -379,6 +478,7 @@ export function DealRadar() {
                         "Industry",
                         "Location",
                         "Reported revenue",
+                        "Fit",
                         "Founded",
                         "",
                       ].map((label, i) => (
@@ -427,6 +527,11 @@ export function DealRadar() {
                             lead.facts.revenueCents,
                             lead.facts.currency || "USD",
                           )}
+                        </td>
+                        <td className="px-5 py-4 tabular-nums">
+                          {lead.score
+                            ? `${lead.score.total}/100${lead.score.eligible ? "" : " · Excluded"}`
+                            : "Needs scoring"}
                         </td>
                         <td className="px-5 py-4 tabular-nums">
                           {lead.facts.foundedYear ?? "Unknown"}
@@ -502,8 +607,8 @@ export function DealRadar() {
           )}
         </Card>
         <p className="mt-6 text-xs leading-5 text-muted-foreground">
-          Phase 3 adds ingest, duplicate review and polite enrichment. Scoring,
-          outreach and pipeline actions arrive in the next phases.
+          Ranking is a deterministic research heuristic. Outreach drafts are
+          copied manually; no messages are sent.
         </p>
       </main>
       {selectedId && (
@@ -591,6 +696,11 @@ export function DealRadar() {
                     ))}
                   </div>
                 )}
+                <OutreachEditor
+                  lead={detail}
+                  thesis={theses.find((t) => t.id === thesisId)}
+                  onChanged={() => setVersion((v) => v + 1)}
+                />
                 <h3 className="mb-3 font-semibold">Field-level evidence</h3>
                 <div className="space-y-3">
                   {detail.evidence.map((e) => (
