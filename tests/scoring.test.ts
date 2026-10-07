@@ -25,6 +25,7 @@ export const example: LeadDetail = {
   score: null,
   drafts: [],
   suppressed: false,
+  mergeHistory:[],
 };
 const thesis: Thesis = {
   id: "test",

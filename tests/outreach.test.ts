@@ -23,6 +23,7 @@ const lead: LeadDetail = {
   score: null,
   drafts: [],
   suppressed: false,
+  mergeHistory:[],
 };
 afterEach(() => vi.unstubAllEnvs());
 it("produces all six tone/channel combinations with valid provenance", () => {

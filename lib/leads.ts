@@ -1,8 +1,14 @@
-import { and, count, eq, like, or, asc, desc, sql } from "drizzle-orm";
+import { z } from "zod";
+import { suppressedSql, addSuppressions } from "./suppression";
+import { and, count, eq, like, or, asc, desc, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { leads, theses, workspaces } from "./schema";
 import {
+  type LeadFilters,
+  stageWriteSchema,
+  bulkWriteSchema,
+  mergeSchema,
   scoreSchema,
   draftSchema,
   factsSchema,
@@ -106,23 +112,26 @@ export async function workspaceSummary(workspaceId: string) {
     thesisCount: thesisCount.value,
   };
 }
-export async function listLeads(
-  workspaceId: string,
-  filters: {
-    page: number;
-    limit: number;
-    q: string;
-    synthetic?: "true" | "false";
-    thesisId?: string;
-    sort?: "name" | "score";
-  },
-) {
+export async function listLeads(workspaceId: string, filters: LeadFilters) {
   const db = await getDb();
   const thesis = filters.thesisId
     ? await getThesis(workspaceId, filters.thesisId)
     : null;
   const date = new Date().toISOString().slice(0, 10);
   const safeSearch = filters.q.replace(/[\%_]/g, "");
+  const currentScore = thesis
+    ? sql`json_extract(${leads.score}, '$.thesisId') = ${thesis.id} AND json_extract(${leads.score}, '$.thesisRevision') = ${thesis.revision} AND json_extract(${leads.score}, '$.leadRevision') = ${leads.revision} AND json_extract(${leads.score}, '$.assessmentDate') = ${date}`
+    : undefined;
+  if (
+    (filters.minScore !== undefined || filters.eligible !== undefined) &&
+    !thesis
+  )
+    throw new ApiError(
+      400,
+      "THESIS_REQUIRED",
+      "Choose a thesis for score filters",
+    );
+  const safe = (s: string) => s.replace(/[\%_]/g, "");
   const where = and(
     eq(leads.workspaceId, workspaceId),
     safeSearch
@@ -133,6 +142,35 @@ export async function listLeads(
       : undefined,
     filters.synthetic
       ? eq(leads.synthetic, filters.synthetic === "true")
+      : undefined,
+    filters.stage ? eq(leads.stage, filters.stage) : undefined,
+    filters.enrichmentStatus
+      ? eq(leads.enrichmentStatus, filters.enrichmentStatus)
+      : undefined,
+    filters.industry
+      ? like(
+          sql`json_extract(${leads.facts}, '$.industry')`,
+          `%${safe(filters.industry)}%`,
+        )
+      : undefined,
+    filters.geography
+      ? or(
+          ...["city", "state", "country"].map((k) =>
+            like(
+              sql`json_extract(${leads.facts}, ${"$." + k})`,
+              `%${safe(filters.geography!)}%`,
+            ),
+          ),
+        )
+      : undefined,
+    filters.minScore !== undefined
+      ? sql`${currentScore} AND json_extract(${leads.score}, '$.total') >= ${filters.minScore}`
+      : undefined,
+    filters.eligible !== undefined
+      ? sql`${currentScore} AND json_extract(${leads.score}, '$.eligible') = ${filters.eligible === "true" ? 1 : 0}`
+      : undefined,
+    filters.suppression && filters.suppression !== "all"
+      ? sql`${suppressedSql(workspaceId)} = ${filters.suppression === "suppressed" ? 1 : 0}`
       : undefined,
   );
   const [total] = await db.select({ value: count() }).from(leads).where(where);
@@ -148,6 +186,7 @@ export async function listLeads(
       createdAt: leads.createdAt,
       revision: leads.revision,
       score: leads.score,
+      suppressed: suppressedSql(workspaceId),
     })
     .from(leads)
     .where(where)
@@ -166,9 +205,11 @@ export async function listLeads(
     .offset((filters.page - 1) * filters.limit);
   const items: LeadListItem[] = rows.map((row) => ({
     ...row,
+    suppressed: Boolean(row.suppressed),
     score:
       row.score &&
-      (!thesis || !scoreIsStale(row.score, row.revision, thesis, date))
+      thesis &&
+      !scoreIsStale(row.score, row.revision, thesis, date)
         ? scoreSchema.parse(row.score)
         : null,
     facts: factsSchema.parse(row.facts),
@@ -207,6 +248,7 @@ export async function leadDetail(
     evidence,
     signals: signalSchema.array().parse(row.signals),
     sources: sourceSchema.array().parse(row.sources),
+    mergeHistory: mergeSchema.array().parse(row.mergeHistory),
     revision: row.revision,
     createdAt: row.createdAt,
   };
@@ -222,4 +264,67 @@ export async function createLocalWorkspace() {
     })
     .onConflictDoNothing();
   return "local-workspace";
+}
+
+export async function moveLead(
+  workspaceId: string,
+  id: string,
+  input: z.infer<typeof stageWriteSchema>,
+) {
+  const db = await getDb();
+  const result = await db
+    .update(leads)
+    .set({ stage: input.stage, updatedAt: Date.now() })
+    .where(
+      and(
+        eq(leads.workspaceId, workspaceId),
+        eq(leads.id, id),
+        eq(leads.stage, input.expectedStage),
+      ),
+    )
+    .returning({ id: leads.id, stage: leads.stage });
+  if (!result.length)
+    throw new ApiError(
+      409,
+      "STALE_STAGE",
+      "Business unavailable or stage changed; reload before moving",
+    );
+  return result[0];
+}
+export async function bulkAction(
+  workspaceId: string,
+  input: z.infer<typeof bulkWriteSchema>,
+) {
+  if (input.action === "suppress")
+    return addSuppressions(
+      workspaceId,
+      input.leadIds.map((value) => ({
+        kind: "lead",
+        value,
+        reason: input.reason,
+      })),
+    );
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    for (const t of input.targets) {
+      const rows = await tx
+        .update(leads)
+        .set({ stage: input.stage, updatedAt: Date.now() })
+        .where(
+          and(
+            eq(leads.workspaceId, workspaceId),
+            eq(leads.id, t.id),
+            eq(leads.stage, t.expectedStage),
+          ),
+        )
+        .returning({ id: leads.id });
+      if (!rows.length)
+        throw new ApiError(
+          409,
+          "STALE_STAGE",
+          "Selection changed; reload before moving",
+        );
+    }
+    return { updated: input.targets.length, stage: input.stage };
+  });
 }

@@ -159,6 +159,15 @@ export const leadQuerySchema = z
     synthetic: z.enum(["true", "false"]).optional(),
     thesisId: z.string().min(1).max(120).optional(),
     sort: z.enum(["name", "score"]).default("name"),
+    stage: z.enum(stages).optional(),
+    industry: z.string().trim().max(80).optional(),
+    geography: z.string().trim().max(100).optional(),
+    enrichmentStatus: z
+      .enum(["pending", "running", "completed", "partial", "blocked", "failed"])
+      .optional(),
+    minScore: z.coerce.number().int().min(0).max(100).optional(),
+    eligible: z.enum(["true", "false"]).optional(),
+    suppression: z.enum(["all", "active", "suppressed"]).default("all"),
   })
   .strict();
 export const idParamsSchema = z
@@ -178,6 +187,7 @@ export type LeadListItem = {
   createdAt: number;
   score: z.infer<typeof scoreSchema> | null;
   revision: number;
+  suppressed: boolean;
 };
 export type LeadDetail = LeadListItem & {
   drafts: z.infer<typeof draftSchema>[];
@@ -186,6 +196,7 @@ export type LeadDetail = LeadListItem & {
   evidence: Evidence[];
   signals: z.infer<typeof signalSchema>[];
   sources: z.infer<typeof sourceSchema>[];
+  mergeHistory: z.infer<typeof mergeSchema>[];
   revision: number;
 };
 export type SessionData = {
@@ -194,3 +205,53 @@ export type SessionData = {
   thesisCount: number;
   syntheticCount: number;
 };
+
+export type LeadFilters = z.input<typeof leadQuerySchema> & {
+  page: number;
+  limit: number;
+  q: string;
+};
+export const stageWriteSchema = z
+  .object({ stage: z.enum(stages), expectedStage: z.enum(stages) })
+  .strict();
+export const bulkWriteSchema = z
+  .discriminatedUnion("action", [
+    z
+      .object({
+        action: z.literal("stage"),
+        stage: z.enum(stages),
+        targets: z
+          .array(
+            z
+              .object({
+                id: z.string().min(1).max(120),
+                expectedStage: z.enum(stages),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(150),
+      })
+      .strict(),
+    z
+      .object({
+        action: z.literal("suppress"),
+        leadIds: z.array(z.string().min(1).max(120)).min(1).max(150),
+        reason: z.string().trim().min(1).max(300),
+      })
+      .strict(),
+  ])
+  .refine(
+    (v) => {
+      const ids = v.action === "stage" ? v.targets.map((t) => t.id) : v.leadIds;
+      return new Set(ids).size === ids.length;
+    },
+    { message: "Lead IDs must be unique" },
+  );
+export const suppressionWriteSchema = z
+  .object({
+    kind: z.enum(["lead", "domain", "email", "phone"]),
+    value: z.string().trim().min(1).max(300),
+    reason: z.string().trim().min(1).max(300),
+  })
+  .strict();

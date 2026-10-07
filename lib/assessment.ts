@@ -1,3 +1,4 @@
+import { matchesSuppression } from "./suppression";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -137,16 +138,7 @@ export async function saveOutreach(
       .select()
       .from(suppressions)
       .where(eq(suppressions.workspaceId, workspaceId));
-    if (
-      entries.some(
-        (s) =>
-          (s.kind === "lead" && s.normalizedValue === row.id) ||
-          (s.kind === "domain" && s.normalizedValue === row.domain) ||
-          (s.kind === "email" &&
-            s.normalizedValue === row.facts.email?.toLowerCase()) ||
-          (s.kind === "phone" && s.normalizedValue === row.normalizedPhone),
-      )
-    )
+    if (entries.some((s) => matchesSuppression(s, row)))
       throw new ApiError(
         403,
         "SUPPRESSED",

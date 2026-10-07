@@ -64,3 +64,27 @@ git log --oneline -6
 ```
 
 Do not reinitialize Git or copy another `.git` folder. These ZIPs do not create commits on your computer: the command above records the reviewed changes in your existing history.
+
+## Phase 5
+
+Commit verified Phase 4 before overlaying Phase 5 if you have not already. Stop dev, copy the Phase 5 ZIP's `deal-radar` contents over the same project folder, preserving `.git`, `.env.local`, and your local DB. Do not nest the folders.
+
+```sh
+npm install
+npm test
+npm run typecheck
+npm run build
+npm run dev
+```
+
+Complete `docs/phase-5-verification.md`, then stop dev and record this phase:
+
+```sh
+git status
+git diff --stat
+git add .
+git commit -m "feat: phase 5 pipeline, suppression and CRM export"
+git log --oneline -7
+```
+
+No new migration or database reset is needed. Keep your existing commit history and author identity.

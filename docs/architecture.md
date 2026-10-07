@@ -91,7 +91,7 @@ Every route validates params, query and relevant body with strict Zod schemas, i
 | POST /api/import/preview | Parse CSV or pasted URLs, validate mapping, show duplicate groups/conflicts and row errors. |
 | POST /api/import | Revalidate, transactionally dedupe/merge and return accepted/rejected/duplicates-merged counts. |
 | GET /api/leads | Bounded search/filter/sort/pagination, score and pipeline summaries. |
-| GET, PATCH /api/leads/:id | Facts/evidence/details and revision-checked edits or stage changes. |
+| GET, PATCH /api/leads/:id | Facts/evidence/details; manual stage changes checked against expected stage. Fact corrections use evidence-preserving re-import. |
 | POST /api/leads/bulk | Stage change or suppression for selected IDs; maximum 150/action. |
 | POST /api/enrichment/jobs | Enqueue selected leads, or ingest up to five pasted real URLs and create a live crawl job. |
 | GET /api/enrichment/jobs/:id | Poll persisted counters, waiting state, per-target outcome and errors. |
@@ -282,3 +282,8 @@ Phase 1 verification is document review, not a runnable test. Runtime acceptance
 - Fit-v1 is a transparent hypothesis, not learned weights, valuation advice or proof of seller intent.
 - Memory caching is disposable; Redis is a future option only.
 - Synthetic fixtures validate flow and UX; live crawl validates actual permitted retrieval. Neither proves broad commercial data coverage.
+
+
+## Phase 5 implementation clarification
+
+The implemented board and directory use the same filtered page (100 maximum); column counts label their shown-page scope. Native table virtualization renders a bounded window of that page. Native modal dialogs provide focus management. `lib/suppression.ts` centralizes normalized opt-out matching and its SQL counterpart. Stage writes check expected stage and leave evidence revision intact. Bulk stale-stage moves roll back atomically. Export is prepared from bounded pages (1,000 cap), then streamed in 100-row CSV chunks; selected identity export is capped at 150. Suppression is checked before producing bytes. Copies/downloads already outside the app cannot be revoked, and this demo does not claim distributed serializable processing across Vercel instances. No saved views, extra tables, worker/Redis infrastructure or integrations were introduced.

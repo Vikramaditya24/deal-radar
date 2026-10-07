@@ -48,3 +48,8 @@ a {
 ::selection {
   background: #85d7b366;
 }
+
+input,select,textarea { accent-color: var(--primary); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex="0"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+dialog[open] { overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }

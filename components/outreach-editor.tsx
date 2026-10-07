@@ -274,16 +274,52 @@ export function OutreachEditor({
                   size="sm"
                   disabled={stale || busy}
                   onClick={async () => {
+                    setBusy(true);
                     try {
+                      const fresh = await api<LeadDetail>(
+                        `/api/leads/${encodeURIComponent(lead.id)}`,
+                      );
+                      const currentTheses = await api<Thesis[]>("/api/theses");
+                      const currentThesis = currentTheses.find(
+                        (t) => t.id === thesis.id,
+                      );
+                      const saved = fresh.drafts.find(
+                        (d) =>
+                          d.thesisId === thesis.id &&
+                          d.tone === tone &&
+                          d.channel === channel,
+                      );
+                      if (fresh.suppressed) {
+                        onChanged();
+                        throw new Error(
+                          "Copy blocked: this business is suppressed.",
+                        );
+                      }
+                      if (
+                        !saved ||
+                        !currentThesis ||
+                        saved.stale ||
+                        saved.leadRevision !== fresh.revision ||
+                        saved.thesisRevision !== currentThesis.revision
+                      ) {
+                        onChanged();
+                        throw new Error(
+                          "Draft changed or became stale. Regenerate before copying.",
+                        );
+                      }
                       await navigator.clipboard.writeText(
-                        (draft.subject ? `Subject: ${draft.subject}\n\n` : "") +
-                          draftText(draft),
+                        (saved.subject ? `Subject: ${saved.subject}\n\n` : "") +
+                          draftText(saved),
                       );
                       setMessage("Saved draft copied. No message was sent.");
-                    } catch {
+                    } catch (e) {
                       setMessage(
-                        "Clipboard unavailable. Select and copy the saved draft manually.",
+                        e instanceof Error
+                          ? e.message
+                          : "Clipboard unavailable. Copy the verified saved draft manually.",
                       );
+                    } finally {
+                      setBusy(false);
                     }
                   }}
                 >

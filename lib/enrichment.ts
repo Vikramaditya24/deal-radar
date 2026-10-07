@@ -1,3 +1,4 @@
+import { matchesSuppression } from "./suppression";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import { randomUUID, createHash } from "node:crypto";
@@ -320,14 +321,7 @@ export async function isSuppressed(
     .select()
     .from(suppressions)
     .where(eq(suppressions.workspaceId, workspaceId));
-  return entries.some(
-    (s) =>
-      (s.kind === "lead" && s.normalizedValue === lead.id) ||
-      (s.kind === "domain" && s.normalizedValue === lead.domain) ||
-      (s.kind === "email" &&
-        s.normalizedValue === lead.facts.email?.toLowerCase()) ||
-      (s.kind === "phone" && s.normalizedValue === lead.normalizedPhone),
-  );
+  return entries.some((s) => matchesSuppression(s, lead));
 }
 function jobView(job: typeof enrichmentJobs.$inferSelect): JobView {
   return {
@@ -739,10 +733,7 @@ export async function processJob(workspaceId: string, id: string) {
           .update(leads)
           .set({
             enrichmentStatus: item.state as
-              | "completed"
-              | "partial"
-              | "blocked"
-              | "failed",
+              "completed" | "partial" | "blocked" | "failed",
             updatedAt: Date.now(),
           })
           .where(
