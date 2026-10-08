@@ -112,3 +112,27 @@ git log --oneline -8
 ```
 
 To run hosted CI, push to a remote you own and inspect the Actions run. These local checks do not claim a GitHub Actions run or Vercel deployment. Do not amend earlier phase commits to fabricate history.
+
+
+## Phase 7 — final handoff
+
+Commit verified Phase 6 first. Overlay this ZIP into the same project, preserving `.git`, `.env.local` and the local database. Do not nest the source folder. This phase adds documentation and updates package metadata to 0.7.0; no migration is needed.
+
+```sh
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+Review the final guides, rehearse the demo and record actual time/review notes. Then:
+
+```sh
+git status
+git diff --stat
+git add .
+git commit -m "docs: phase 7 demo, file guide and interview handoff"
+git log --oneline -9
+```
+
+Push only to a repository you own/configure. ZIP delivery preserves source, not your commit history, and does not create a video or deployment.

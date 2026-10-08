@@ -24,7 +24,7 @@ npm run build
 npm run start -- --hostname 127.0.0.1
 ```
 
-Visit http://localhost:3000 and `/api/health`; the latter returns `data.status: "ok"`, `data.database: "libsql"` and `data.version: "0.6.0"`. A 503 means the database/configuration is unavailable; check server logs and migration/environment configuration. Builds require no database or provider secrets. For an existing database, migration history controls which migrations apply.
+Visit http://localhost:3000 and `/api/health`; the latter returns `data.status: "ok"`, `data.database: "libsql"` and `data.version: "0.7.0"`. A 503 means the database/configuration is unavailable; check server logs and migration/environment configuration. Builds require no database or provider secrets. For an existing database, migration history controls which migrations apply.
 
 ## Vercel with Turso
 

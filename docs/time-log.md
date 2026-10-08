@@ -16,3 +16,5 @@ Review responsibilities: understand each file, reproduce checks locally, verify 
 | 2026-10-08 | 5 | Pipeline, filters, bulk actions, suppression, safe CSV, keyboard/table polish and verification | To be recorded by candidate | ChatGPT generated implementation and ran automated checks; browser checklist remains manual | Pending |
 
 | 2026-10-08 | 6 | CI, deployment/setup documentation, API/configuration tests and clean-source verification | To be recorded by candidate | ChatGPT generated changes, checked primary docs and ran local checks; hosted deployment remains manual | Pending |
+
+| 2026-10-08 | 7 | Demo script, final file guide, interview Q&A and source handoff | To be recorded by candidate | ChatGPT drafted guides against final code and ran final checks; candidate rehearsal/recording and review remain manual | Pending |

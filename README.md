@@ -1,4 +1,4 @@
-# Deal Radar — Phase 6
+# Deal Radar — Phase 7
 
 A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. This delivery also includes reusable thesis editing, fit-v1 ranking, sentence-sourced outreach, saved user edits, and optional grounded AI reasoning. The app includes the pipeline board, bulk actions, filters, suppression management, CRM CSV export, command palette, virtualized table and data-quality drawer. Phase 6 adds CI, production configuration validation, deployment instructions and clean-source verification.
 
@@ -35,7 +35,7 @@ The shared migration runner is `drizzle-orm/libsql/migrator`; schema is `lib/sch
 
 ## Phases
 
-See `docs/architecture.md` for the full revised design. Phases 3 and 4 implement ingest/enrichment/live crawl and scoring/outreach; Phase 5 implements polished workflow/export/suppression; Phase 6 complete tests/docs/CI; Phase 7 demonstration and every-file guide. No Docker or Redis implementation is planned. Record actual development time and AI use in `docs/time-log.md`.
+See `docs/architecture.md` for the full revised design. Phases 3 and 4 implement ingest/enrichment/live crawl and scoring/outreach; Phase 5 implements polished workflow/export/suppression; Phase 6 added tests/docs/CI; Phase 7 adds the demonstration script and every-file/interview guides. No Docker or Redis implementation is planned. Record actual development time and AI use in `docs/time-log.md`.
 
 The equivalent 150-row CSV is included as `data/sample.csv`; the generator and website fixtures are in `data/sample.ts`. Recorded check results and manual steps are in `docs/phase-2-verification.md`.
 
@@ -86,4 +86,14 @@ See `docs/phase-5-verification.md` for automated results and manual browser chec
 
 Use the lockfile with `npm ci`; `.nvmrc` selects Node 24. The committed GitHub Actions workflow runs typecheck, tests and build on pushes, pull requests and manual runs. It requires no secrets or database service. Put the contents of this folder at your repository root so `.github/workflows/ci.yml` is at the Git root. No workflow run or hosted deployment was performed by this delivery.
 
-See [DEPLOY.md](DEPLOY.md) for local production startup and Vercel/Turso setup, and [docs/phase-6-verification.md](docs/phase-6-verification.md) for check results and remaining manual checks. Health reports the package version, currently `0.6.0`. Production JSON mutations reject missing or malformed `APP_ORIGIN` instead of relying on the incoming host.
+See [DEPLOY.md](DEPLOY.md) for local production startup and Vercel/Turso setup, and [docs/phase-6-verification.md](docs/phase-6-verification.md) for check results and remaining manual checks. Health reports the package version, currently `0.7.0`. Production JSON mutations reject missing or malformed `APP_ORIGIN` instead of relying on the incoming host.
+
+
+## Phase 7 — explain and demonstrate
+
+- [Two-minute demo script](docs/demo-script.md): preparation, timed on-screen actions, narration and a rehearsal checklist. The recording itself must be made in your browser.
+- [Every-file guide](docs/file-guide.md): final source inventory, purpose, callers/data flow, failure behavior and a concrete example for each file, plus implementation clarifications.
+- [Ten interview Q&As](docs/interview-qa.md): answers tied to code, follow-up questions and exercises to demonstrate your understanding.
+- [Final handoff](docs/phase-7-verification.md): what has been checked, what remains manual and how to commit this phase.
+
+This delivery includes a recording plan, not a recorded video or a deployed URL. Complete the browser/deployment checks you plan to claim, fill in actual time and review notes, and disclose AI assistance before submitting.
