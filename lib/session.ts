@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb, databaseConfig } from "./db";
 import { workspaces } from "./schema";
 const cookieName = "deal-radar-session";
-function secret() {
+export function sessionSecret() {
   const configured = process.env.SESSION_SECRET;
   if (configured && configured.length < 32)
     throw new Error("SESSION_SECRET must contain at least 32 characters");
@@ -13,7 +13,7 @@ function secret() {
   return configured || "deal-radar-local-development-only-secret";
 }
 function hash(token: string) {
-  return createHmac("sha256", secret()).update(token).digest("hex");
+  return createHmac("sha256", sessionSecret()).update(token).digest("hex");
 }
 export async function getWorkspace() {
   const db = await getDb();

@@ -1,13 +1,13 @@
-# Deal Radar — Phase 5
+# Deal Radar — Phase 6
 
-A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. This delivery also includes reusable thesis editing, fit-v1 ranking, sentence-sourced outreach, saved user edits, and optional grounded AI reasoning. This phase completes the pipeline board, bulk actions, filters, suppression management, CRM CSV export, command palette, virtualized table and data-quality drawer.
+A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. This delivery also includes reusable thesis editing, fit-v1 ranking, sentence-sourced outreach, saved user edits, and optional grounded AI reasoning. The app includes the pipeline board, bulk actions, filters, suppression management, CRM CSV export, command palette, virtualized table and data-quality drawer. Phase 6 adds CI, production configuration validation, deployment instructions and clean-source verification.
 
 ## Run locally
 
 Use Node.js 24 (recommended) or 22.12+ (verified runtime recorded in docs/phase-3-verification.md).
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
@@ -29,7 +29,7 @@ GET `/api/health` should return `data.status: "ok"`; GET `/api/session` reports 
 
 ## Hosted libSQL / Turso
 
-Copy `.env.example` to `.env.local`; set `TURSO_DATABASE_URL` to the hosted libSQL URL, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (at least 32 characters), and `APP_ORIGIN`. Run `npm run db:migrate` explicitly. `npm run dev` never migrates hosted data automatically. Use the labeled browser demo action for hosted sessions; CLI seed refuses remote databases. Production Vercel requires hosted storage; local file URLs are rejected. No embedded replica or alternate SQL dialect.
+Copy `.env.example` to `.env.local`; set `TURSO_DATABASE_URL` to the hosted libSQL URL, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (at least 32 characters), and `APP_ORIGIN` (the exact external origin without a trailing slash or path; HTTPS on Vercel). Run `npm run db:migrate` explicitly. `npm run dev` never migrates hosted data automatically. Use the labeled browser demo action for hosted sessions; CLI seed refuses remote databases. Production Vercel requires hosted storage; local file URLs are rejected. No embedded replica or alternate SQL dialect.
 
 The shared migration runner is `drizzle-orm/libsql/migrator`; schema is `lib/schema.ts`, history is `drizzle/`. `npm run db:generate` creates a migration after intentional schema changes. Review generated SQL; use committed migrations rather than schema push. Builds do not access or mutate database data.
 
@@ -79,4 +79,11 @@ HubSpot maps company name/domain/phone/industry/geography/revenue plus labeled c
 
 Keyboard: Ctrl/Cmd+K opens Quick actions, `/` focuses search when not typing, Escape closes dialogs; Tab traverses controls. Native modal dialogs manage focus; table scroll region supports keyboard scrolling. Reduced-motion preferences are respected. Mobile uses horizontal table scrolling or the responsive board. Data-quality details include every stored field, selected/alternate confidence, source method/time, merge conflicts, successful crawl robots observations and visible job failures.
 
-See `docs/phase-5-verification.md` for automated results and manual browser checks. This phase introduces no extra database table, migration, paid key or dependency. Basic CI and deployment documentation remain Phase 6; the video script and file/interview guide remain Phase 7.
+See `docs/phase-5-verification.md` for automated results and manual browser checks. This phase introduces no extra database table, migration, paid key or dependency. GitHub Actions and deployment documentation are included in Phase 6; the video script and file/interview guide remain Phase 7.
+
+
+## Phase 6 — reproducible setup and CI
+
+Use the lockfile with `npm ci`; `.nvmrc` selects Node 24. The committed GitHub Actions workflow runs typecheck, tests and build on pushes, pull requests and manual runs. It requires no secrets or database service. Put the contents of this folder at your repository root so `.github/workflows/ci.yml` is at the Git root. No workflow run or hosted deployment was performed by this delivery.
+
+See [DEPLOY.md](DEPLOY.md) for local production startup and Vercel/Turso setup, and [docs/phase-6-verification.md](docs/phase-6-verification.md) for check results and remaining manual checks. Health reports the package version, currently `0.6.0`. Production JSON mutations reject missing or malformed `APP_ORIGIN` instead of relying on the incoming host.

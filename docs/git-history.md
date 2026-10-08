@@ -88,3 +88,27 @@ git log --oneline -7
 ```
 
 No new migration or database reset is needed. Keep your existing commit history and author identity.
+
+
+## Phase 6
+
+Commit your verified Phase 5 before overlaying this phase. Copy this ZIP's `deal-radar` contents, including `.github` and `.nvmrc`, into the same project. Preserve Git, environment and database files. The directory containing package.json should be your repository root for CI.
+
+```sh
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+Review `DEPLOY.md` and complete `docs/phase-6-verification.md` locally, then:
+
+```sh
+git status
+git diff --stat
+git add .
+git commit -m "chore: phase 6 CI, deployment docs and configuration checks"
+git log --oneline -8
+```
+
+To run hosted CI, push to a remote you own and inspect the Actions run. These local checks do not claim a GitHub Actions run or Vercel deployment. Do not amend earlier phase commits to fabricate history.

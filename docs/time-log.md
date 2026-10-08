@@ -14,3 +14,5 @@ Review responsibilities: understand each file, reproduce checks locally, verify 
 | 2026-10-07 | 4 | Thesis editor, fit-v1 scoring, sourced outreach, optional AI choices, verification | To be recorded by candidate | ChatGPT generated implementation and ran local checks; browser and live provider limits documented | Pending |
 
 | 2026-10-08 | 5 | Pipeline, filters, bulk actions, suppression, safe CSV, keyboard/table polish and verification | To be recorded by candidate | ChatGPT generated implementation and ran automated checks; browser checklist remains manual | Pending |
+
+| 2026-10-08 | 6 | CI, deployment/setup documentation, API/configuration tests and clean-source verification | To be recorded by candidate | ChatGPT generated changes, checked primary docs and ran local checks; hosted deployment remains manual | Pending |

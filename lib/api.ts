@@ -61,6 +61,29 @@ export function query(request: Request) {
   return Object.fromEntries(params);
 }
 export async function readJson(request: Request, maxBytes = 100_000) {
+  if (process.env.VERCEL && !process.env.APP_ORIGIN)
+    throw new ApiError(
+      503,
+      "INVALID_CONFIGURATION",
+      "Set APP_ORIGIN to the deployed HTTPS origin",
+    );
+  if (process.env.APP_ORIGIN) {
+    try {
+      const configured = new URL(process.env.APP_ORIGIN);
+      if (
+        configured.origin !== process.env.APP_ORIGIN ||
+        !["http:", "https:"].includes(configured.protocol) ||
+        (process.env.VERCEL && configured.protocol !== "https:")
+      )
+        throw new Error();
+    } catch {
+      throw new ApiError(
+        503,
+        "INVALID_CONFIGURATION",
+        "APP_ORIGIN must be an HTTP(S) origin without a trailing slash or path; Vercel requires HTTPS",
+      );
+    }
+  }
   const requestUrl = new URL(request.url);
   const expected =
     process.env.APP_ORIGIN ||
