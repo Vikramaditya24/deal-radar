@@ -1,99 +1,63 @@
-# Deal Radar — Phase 7
+# Deal Radar
 
-A Next.js / TypeScript / Tailwind / shadcn-ui scaffold backed by one Drizzle/libSQL schema and migration history. This delivery adds CSV/URL imports, conservative fuzzy duplicate review, polite enrichment, persisted client-polled jobs, pause/resume/cancel, and live crawl for up to five public URLs. This delivery also includes reusable thesis editing, fit-v1 ranking, sentence-sourced outreach, saved user edits, and optional grounded AI reasoning. The app includes the pipeline board, bulk actions, filters, suppression management, CRM CSV export, command palette, virtualized table and data-quality drawer. Phase 6 adds CI, production configuration validation, deployment instructions and clean-source verification.
+An acquisition-target research tool for search-fund and ETA buyers, built as an upgrade on the idea behind SaaSquatch. SaaSquatch finds leads. Deal Radar answers the next question a buyer has: **which of these businesses actually fit my thesis, why, and what do I say to the owner?**
 
-## Run locally
+Built for the Caprae Capital AI-readiness challenge.
 
-Use Node.js 24 (recommended) or 22.12+ (verified runtime recorded in docs/phase-3-verification.md).
+## What it does
+
+1. **Thesis builder.** Save a reusable buy-box: industries, geographies, revenue range, minimum age, must-haves, deal-breakers.
+2. **Import and dedupe.** Upload a CSV or paste URLs. Fuzzy matching (normalized names, domains, phones, trigram and Jaro-Winkler similarity) proposes merges. Ambiguous or conflicting matches default to "keep separate" and you decide.
+3. **Enrichment.** A polite crawler reads a homepage plus up to two about/contact/team pages. It respects robots.txt, rate-limits per host, and blocks private network addresses. Live crawl is capped at 5 URLs.
+4. **Explainable fit score (fit-v1, 0-100).** Thesis match 50, succession research clues 20, data completeness 15, contactability 15. Every point is backed by a cited piece of evidence with a confidence level. Unknowns are shown as unknown, not guessed.
+5. **Outreach drafts.** Email or LinkedIn note in three tones. Each factual sentence points to its evidence. Nothing is sent, and the draft never claims the owner wants to sell.
+6. **Pipeline.** New / Contacted / Replied / Meeting, bulk moves, server-side filters.
+7. **Export.** HubSpot- and Salesforce-style CSV mappings with spreadsheet-formula protection.
+8. **Ethics controls.** A suppression list (lead, domain, email, phone) blocks enrichment, drafting and export. Sample data is synthetic and labeled everywhere.
+
+## Run it
+
+Requires Node 22.12+ (Node 24 recommended). No accounts, database service or API keys needed.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. No environment file or paid key is required. Startup applies committed migrations to `data/deal-radar.db`. Click **Load 150 sample businesses**. The button loads 150 synthetic records and one thesis, only once. Search, pagination and evidence details work. Restart preserves the database. Alternatively `npm run db:seed` loads the same demo into the local workspace.
-
-In the bundled sample dataset, names, financial figures and contact assertions are synthetic, not discovered businesses. Reserved `.example` domains never get crawled; phone numbers use the fictional US 555-0100–0199 range and are non-unique across fixtures. Revenue is explicitly illustrative import data, not extracted website revenue. Some fields are intentionally unknown.
-
-## Checks
+Open http://localhost:3000 and click **Load 150 sample businesses**. Migrations apply automatically to a local SQLite file at `data/deal-radar.db`.
 
 ```sh
-npm test
+npm test          # 75 tests
 npm run typecheck
 npm run build
-npm run db:migrate
-npm run db:seed
 ```
 
-GET `/api/health` should return `data.status: "ok"`; GET `/api/session` reports counts. GET `/api/leads?limit=20&page=1&q=Buckeye` searches business name/domain. GET `/api/theses` reads the demo thesis. GET `/api/leads/:id` returns selected evidence. POST `/api/demo` requires JSON `{}` and the matching Origin header; the app supplies it. Unknown query keys and invalid bounds return 400. Missing/foreign lead IDs return 404.
+Optional: set `OPENAI_API_KEY` to let one action reorder and reword score reasons. It cannot change points or invent facts, and everything works without it.
 
-## Hosted libSQL / Turso
+## Stack
 
-Copy `.env.example` to `.env.local`; set `TURSO_DATABASE_URL` to the hosted libSQL URL, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (at least 32 characters), and `APP_ORIGIN` (the exact external origin without a trailing slash or path; HTTPS on Vercel). Run `npm run db:migrate` explicitly. `npm run dev` never migrates hosted data automatically. Use the labeled browser demo action for hosted sessions; CLI seed refuses remote databases. Production Vercel requires hosted storage; local file URLs are rejected. No embedded replica or alternate SQL dialect.
+| Layer | Choice |
+|---|---|
+| App | Next.js (App Router), TypeScript, React 19 |
+| UI | Tailwind CSS 4, shadcn/ui components, dark/light themes |
+| Database | libSQL via Drizzle ORM: a local file in development, Turso in production, one schema |
+| Validation | Zod on every API route |
+| Crawling | Cheerio, robots-parser, DNS-pinned requests |
+| Cache | In-memory LRU (200 entries / 10 MB) plus per-host timers |
+| Tests / CI | Vitest, GitHub Actions (typecheck, test, build) |
+| Hosting | Vercel (serverless Node routes) + Turso |
 
-The shared migration runner is `drizzle-orm/libsql/migrator`; schema is `lib/schema.ts`, history is `drizzle/`. `npm run db:generate` creates a migration after intentional schema changes. Review generated SQL; use committed migrations rather than schema push. Builds do not access or mutate database data.
+See [docs/architecture.md](docs/architecture.md) for design decisions, schema and performance, and [DEPLOY.md](DEPLOY.md) for hosting steps.
 
-## Phases
+## Known limits
 
-See `docs/architecture.md` for the full revised design. Phases 3 and 4 implement ingest/enrichment/live crawl and scoring/outreach; Phase 5 implements polished workflow/export/suppression; Phase 6 added tests/docs/CI; Phase 7 adds the demonstration script and every-file/interview guides. No Docker or Redis implementation is planned. Record actual development time and AI use in `docs/time-log.md`.
+- Scores are prioritization heuristics, not valuations and not a prediction that an owner will sell. Matching is literal phrase matching and can miss synonyms.
+- The enrichment queue is client-driven and single-user. Do not process one job from two tabs at once. Throttling is per server instance.
+- JavaScript-only websites may yield few facts.
+- Revenue figures in the sample are illustrative import data, not extracted.
+- No authentication: a browser session scopes the demo data.
+- Live crawling and hosted deployment are not covered by the automated tests.
 
-The equivalent 150-row CSV is included as `data/sample.csv`; the generator and website fixtures are in `data/sample.ts`. Recorded check results and manual steps are in `docs/phase-2-verification.md`.
+## Build notes
 
-## Phase 3 usage
-
-- Click **Import CSV / URLs**, upload `data/sample.csv` or your own CSV, then Preview. The mapper supports company/URL aliases; customize field mappings and preview again if needed. Reject invalid rows individually. Annual revenue requires an explicit currency and is unverified input data. Ten-digit phone numbers assume US country code; use an explicit international country code for other countries.
-- Review proposed merges. Conflicting geography/domain or uncertain names default to separate. Explicit decisions retain source/conflict history. Confirm import to see the added/duplicates-merged/rejected summary. Re-importing sample.csv after demo load should add zero records and merge 150 duplicates.
-- Click **Enrich shown** or **Enrich this business** for fixture or real targets. Fixtures use embedded HTML only. Progress is in one job row; the client drives bounded process calls and polls. Pause stops future requests; an in-flight server slice may finish. Cancel blocks subsequent work. Reopen the app and Resume the latest persisted job.
-- Click **Live crawl · up to 5 URLs**, paste absolute public HTTP(S) business URLs and start. The crawler checks robots.txt, stops on blocks/challenges, pins DNS-validated public addresses, rate-limits each host, and uses a five-second request budget with two retries for transient failures. It fetches homepage plus up to two discovered same-origin about/contact/team pages. HTML is parsed as inert text, never rendered as trusted HTML.
-- robots.txt redirects are bounded and use the same safety checks. Unavailable/invalid robots is visible and conservatively blocks/defer retrieval. Supported crawl-delay and Retry-After increase waits. Cached observations retain original dates. Compressed responses that ignore identity encoding are not parsed; dynamic JavaScript-only websites may return few facts.
-
-The latest five jobs are listed by GET `/api/enrichment/jobs` for reopening progress; this small addition to the Phase 1 API requires no extra table. This is a single-client, best-effort queue. Per-process throttling and single-flight do not coordinate independent Vercel instances. Do not run the same job from concurrent tabs. Redis remains a future upgrade only.
-
-See `docs/phase-3-verification.md` for recorded checks/manual instructions and `docs/git-history.md` for preserving phase commits. The five-table schema and original migration history are unchanged. Real-site retrieval was not verified in this restricted environment (DNS failed); fixture and policy flows are tested without network.
-
-## Phase 4 usage
-
-1. Choose the sample thesis or create a buy-box with **New thesis**. Empty fields are unconfigured, not zero constraints. Industries/geographies/must-haves/deal-breakers are comma-separated literal phrases; at least one positive criterion is required.
-2. Click **Rank first 150 businesses**. This scores the first 150 records alphabetically across the directory, then displays current-thesis scores descending. For larger directories use **Score shown** on other pages. Changing thesis or evidence invalidates the prior assessment. Each lead stores one latest score; switching theses requires rescoring. The assessment date is UTC; a new UTC day requires rescoring.
-3. Inspect a business: view four factor bars, reasons, unknowns and any exclusion cap. **Score this business** recomputes it. No valuation or seller-probability claim is made.
-4. Generate email or LinkedIn text in professional, warm or direct tone. Review every fact's evidence and buyer-intent thesis fields. Copy saved text manually. LinkedIn notes are limited to 700 characters. Drafts do not send messages and never infer willingness to sell.
-5. Save an edit: the entire edited body is labeled user-written without automatic citations; the original generated sentences and citations remain available in a disclosure. Copy uses the saved draft, not unsaved editor text. Regenerate after evidence/thesis changes. Suppression is enforced server-side; its management UI is in the Suppression tab.
-
-The fit-v1 allocation is thesis 50, succession research clues 20, completeness 15, contactability 15. Field points are discounted by selected evidence confidence. Unconfigured positive criteria renormalize to 50. Literal must-have absence stays unknown; evidenced deal-breakers exclude and cap total at 20. Factor bars show uncapped points. Geography supports the Phase 2 composite assertion; explicitly stored supported currency is metadata of the evidenced revenue assertion. No currency conversion is performed. See docs/phase-4-verification.md for checks and limits.
-
-Optional AI: set server-only `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default `gpt-4o-mini`), restart, then use **Optional AI reasoning** for one business. It calls the OpenAI Responses API with strict JSON schema to choose reason order and approved wording, rather than accept free-form model claims. It cannot change points or generate outreach facts. Missing key, refusal, timeout, malformed output or invalid/duplicate indices use deterministic fallback. This path is optional and may incur provider charges if enabled. No key is needed for any normal flow. Never commit `.env.local`.
-
-Generated reasoning and evidence are research aids: imported values remain unverified, confidence is a convention, and literal phrase matching can miss synonyms and semantic negation. Review original sources before diligence or outreach. Synthetic records and drafts remain labeled demo content.
-
-## Phase 5 — workflow and quality
-
-The Directory and Pipeline share server filters, selected IDs and stage state. Pages contain at most 100 records; the native directory table renders a window of rows as you scroll. Pipeline column counts explicitly cover the shown page. Individual stage menus are the keyboard/touch alternative to drag-and-drop. Bulk moves preview the selected count and validate every expected stage in one transaction. A changed stage rejects the whole bulk action; stage changes do not invalidate evidence-based scores or drafts.
-
-Filters: business name/domain, industry, city/state/country, stage, enrichment outcome, real/synthetic, minimum current-thesis score, eligibility and suppression. Unknown or stale scores do not pass score filters. Suppression defaults to Active only in the UI; switch to Include suppressed or Suppressed only to review blocked records. Active thesis choice and theme persist in the browser. There are no saved views.
-
-Opt-outs: add a lead/domain/email/phone suppression in the Suppression tab or from a business drawer. Domain normalization matches the registrable business domain; shared phone/email values can match multiple leads (synthetic phones intentionally repeat). Suppression blocks pending jobs, marks saved drafts stale and stops new enrichment/drafting/export. Removing an entry does not restart jobs or restore draft freshness. Generate a new draft explicitly. Copy rechecks suppression and current draft/thesis revisions immediately before clipboard use. Copies already outside the app cannot be revoked.
-
-Export filtered results (maximum 1,000 unsuppressed records) or selected records (maximum 150 server-side; UI page selection is at most 100). Selected export uses explicit identity, independent of current filter text. CSV is prepared from bounded database pages, rechecks suppression and streams text in chunks of 100. Every cell is quoted; leading formula characters are prefixed with an apostrophe. Phone values beginning with `+` consequently need mapping/import review too. CSV preserves synthetic flags; do not import demo contacts into a real outreach workflow.
-
-HubSpot maps company name/domain/phone/industry/geography/revenue plus labeled custom columns. Salesforce maps Account-style fields plus proposed `__c` custom columns; `CurrencyIsoCode` requires enabled multi-currency or manual mapping. Custom fields must be created or mapped by the importer. Industry values may need mapping to each CRM’s allowed picklist values. These are CSV mappings, not connected integrations. No messages are sent. Research origin identifies a supplied website/import or synthetic fixture; it does not imply each exported fact was found at that URL.
-
-Keyboard: Ctrl/Cmd+K opens Quick actions, `/` focuses search when not typing, Escape closes dialogs; Tab traverses controls. Native modal dialogs manage focus; table scroll region supports keyboard scrolling. Reduced-motion preferences are respected. Mobile uses horizontal table scrolling or the responsive board. Data-quality details include every stored field, selected/alternate confidence, source method/time, merge conflicts, successful crawl robots observations and visible job failures.
-
-See `docs/phase-5-verification.md` for automated results and manual browser checks. This phase introduces no extra database table, migration, paid key or dependency. GitHub Actions and deployment documentation are included in Phase 6; the video script and file/interview guide remain Phase 7.
-
-
-## Phase 6 — reproducible setup and CI
-
-Use the lockfile with `npm ci`; `.nvmrc` selects Node 24. The committed GitHub Actions workflow runs typecheck, tests and build on pushes, pull requests and manual runs. It requires no secrets or database service. Put the contents of this folder at your repository root so `.github/workflows/ci.yml` is at the Git root. No workflow run or hosted deployment was performed by this delivery.
-
-See [DEPLOY.md](DEPLOY.md) for local production startup and Vercel/Turso setup, and [docs/phase-6-verification.md](docs/phase-6-verification.md) for check results and remaining manual checks. Health reports the package version, currently `0.7.0`. Production JSON mutations reject missing or malformed `APP_ORIGIN` instead of relying on the incoming host.
-
-
-## Phase 7 — explain and demonstrate
-
-- [Two-minute demo script](docs/demo-script.md): preparation, timed on-screen actions, narration and a rehearsal checklist. The recording itself must be made in your browser.
-- [Every-file guide](docs/file-guide.md): final source inventory, purpose, callers/data flow, failure behavior and a concrete example for each file, plus implementation clarifications.
-- [Ten interview Q&As](docs/interview-qa.md): answers tied to code, follow-up questions and exercises to demonstrate your understanding.
-- [Final handoff](docs/phase-7-verification.md): what has been checked, what remains manual and how to commit this phase.
-
-This delivery includes a recording plan, not a recorded video or a deployed URL. Complete the browser/deployment checks you plan to claim, fill in actual time and review notes, and disclose AI assistance before submitting.
+Built with AI assistance (ChatGPT generated most of the code and I directed, reviewed and ran it). See [docs/BUILD-NOTES.md](docs/BUILD-NOTES.md).
