@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Deal Radar — acquisition research",
   description:
-    "An evidence-backed acquisition shortlist for search fund buyers.git add .",
+    "An evidence-backed acquisition shortlist for search fund buyers.",
 };
 export default function RootLayout({
   children,
